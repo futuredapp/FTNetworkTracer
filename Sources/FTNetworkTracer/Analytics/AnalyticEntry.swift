@@ -8,7 +8,7 @@ import Foundation
 ///
 /// - Note: This struct is used by ``AnalyticsProtocol`` implementations for tracking
 /// network activity. For logging purposes, use ``LogEntry`` instead.
-public struct AnalyticEntry: Sendable {
+public struct AnalyticEntry: NetworkEntry {
     public let type: EntryType
     public let headers: [String: String]?
     public let body: Data?
@@ -50,38 +50,5 @@ public struct AnalyticEntry: Sendable {
         self.requestId = requestId
         self.operationName = operationName
         self.variables = configuration.maskVariables(variables)
-    }
-
-    /// Convenience computed properties for accessing associated values
-    public var method: String {
-        switch type {
-        case let .request(method, _), let .response(method, _, _), let .error(method, _, _):
-            return method
-        }
-    }
-
-    public var url: String {
-        switch type {
-        case let .request(_, url), let .response(_, url, _), let .error(_, url, _):
-            return url
-        }
-    }
-
-    public var statusCode: Int? {
-        switch type {
-        case let .response(_, _, statusCode):
-            return statusCode
-        case .request, .error:
-            return nil
-        }
-    }
-
-    public var error: String? {
-        switch type {
-        case let .error(_, _, error):
-            return error
-        case .request, .response:
-            return nil
-        }
     }
 }

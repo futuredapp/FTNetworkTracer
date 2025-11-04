@@ -1,5 +1,7 @@
 import Foundation
-
+#if canImport(os.log)
+import os.log
+#endif
 /// Represents a log entry for logging network activity.
 ///
 /// This struct contains all the data needed to log network requests, responses, and errors.
@@ -7,20 +9,34 @@ import Foundation
 /// network information without optionals.
 ///
 /// - Note: For analytics tracking, use ``AnalyticEntry`` instead.
-public struct LogEntry: Sendable {
-    public let type: EntryType
-    public let headers: [String: String]?
-    public let body: Data?
-    public let timestamp: Date
-    public let duration: TimeInterval?
-    public let requestId: String
+struct LogEntry: NetworkEntry {
+    let type: EntryType
+    let headers: [String: String]?
+    let body: Data?
+    let timestamp: Date
+    let duration: TimeInterval?
+    let requestId: String
 
     /// Additional context for GraphQL operations
-    public let operationName: String?
-    public let query: String?
-    public let variables: [String: any Sendable]?
+    let operationName: String?
+    let query: String?
+    let variables: [String: any Sendable]?
 
-    public init(
+    #if canImport(os.log)
+    var level: OSLogType {
+        switch type {
+        case .error:
+            return .error
+        case let .response(_, _, statusCode):
+            guard let statusCode = statusCode else { return .info }
+            return statusCode >= 400 ? .error : .info
+        case .request:
+            return .info
+        }
+    }
+    #endif
+
+    init(
         type: EntryType,
         headers: [String: String]? = nil,
         body: Data? = nil,
@@ -42,41 +58,8 @@ public struct LogEntry: Sendable {
         self.variables = variables
     }
 
-    /// Convenience computed properties for accessing associated values
-    public var method: String {
-        switch type {
-        case let .request(method, _), let .response(method, _, _), let .error(method, _, _):
-            return method
-        }
-    }
-
-    public var url: String {
-        switch type {
-        case let .request(_, url), let .response(_, url, _), let .error(_, url, _):
-            return url
-        }
-    }
-
-    public var statusCode: Int? {
-        switch type {
-        case let .response(_, _, statusCode):
-            return statusCode
-        case .request, .error:
-            return nil
-        }
-    }
-
-    public var error: String? {
-        switch type {
-        case let .error(_, _, error):
-            return error
-        case .request, .response:
-            return nil
-        }
-    }
-
     /// Builds a formatted log message from this LogEntry
-    public func buildMessage(configuration: LoggerConfiguration) -> String {
+    func buildMessage(configuration: LoggerConfiguration) -> String {
         let requestIdPrefix = String(requestId.prefix(8))
         let timestampString = formatTimestamp(timestamp)
 

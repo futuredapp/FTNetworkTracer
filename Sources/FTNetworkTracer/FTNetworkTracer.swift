@@ -6,6 +6,7 @@ import os.log
 public class FTNetworkTracer {
     private let logger: LoggerConfiguration?
     private let analytics: AnalyticsProtocol?
+//    public var graphqlURL: URL?
 
     public init(logger: LoggerConfiguration?, analytics: AnalyticsProtocol?) {
         self.logger = logger
@@ -19,7 +20,7 @@ public class FTNetworkTracer {
         requestId: String
     ) {
         logAndTrack(
-            type: "request",
+            entryType: .request(method: request.httpMethod ?? "UNKNOWN", url: request.url?.absoluteString ?? "UNKNOWN"),
             request: request,
             requestId: requestId
         )
@@ -35,7 +36,11 @@ public class FTNetworkTracer {
         guard let httpResponse = response as? HTTPURLResponse else { return }
 
         logAndTrack(
-            type: "response",
+            entryType: .response(
+                method: request.httpMethod ?? "UNKNOWN",
+                url: request.url?.absoluteString ?? "UNKNOWN",
+                statusCode: httpResponse.statusCode
+            ),
             request: request,
             response: httpResponse,
             data: data,
@@ -50,101 +55,145 @@ public class FTNetworkTracer {
         requestId: String
     ) {
         logAndTrack(
-            type: "error",
+            entryType: .error(
+                method: request.httpMethod ?? "UNKNOWN",
+                url: request.url?.absoluteString ?? "UNKNOWN",
+                error: error.localizedDescription
+            ),
             request: request,
-            error: error,
             requestId: requestId
         )
     }
-    
+
+    // MARK: - GraphQL API
+
+    public func logAndTrackRequest(
+        url: String?,
+        operationName: String,
+        query: String,
+        variables: [String: any Sendable]?,
+        headers: [String: String]?,
+        requestId: String
+    ) {
+        performLogAndTrack(
+            entryType: .request(method: "POST", url: url ?? "UNKNOWN"),
+            headers: headers,
+            body: nil,
+            duration: nil,
+            requestId: requestId,
+            operationName: operationName,
+            query: query,
+            variables: variables
+        )
+    }
+
+    public func logAndTrackResponse(
+        url: String?,
+        operationName: String,
+        statusCode: Int?,
+        requestId: String,
+        startTime: Date
+    ) {
+        performLogAndTrack(
+            entryType: .response(method: "POST", url: url ?? "UNKNOWN", statusCode: statusCode),
+            headers: nil,
+            body: nil,
+            duration: Date().timeIntervalSince(startTime),
+            requestId: requestId,
+            operationName: operationName
+        )
+    }
+
+    public func logAndTrackError(
+        url: String?,
+        operationName: String,
+        error: Error,
+        requestId: String
+    ) {
+        performLogAndTrack(
+            entryType: .error(method: "POST", url: url ?? "UNKNOWN", error: String(describing: error)),
+            headers: nil,
+            body: nil,
+            duration: nil,
+            requestId: requestId,
+            operationName: operationName
+        )
+    }
+
     // MARK: - Private Helpers
 
     private func logAndTrack(
-        type: String,
+        entryType: EntryType,
         request: URLRequest,
         response: HTTPURLResponse? = nil,
         data: Data? = nil,
-        error: Error? = nil,
         requestId: String,
         startTime: Date? = nil
     ) {
-        let method = request.httpMethod ?? "UNKNOWN"
-        let url = request.url?.absoluteString ?? "UNKNOWN"
         let headers = response?.allHeaderFields as? [String: String] ?? request.allHTTPHeaderFields
         let body = data ?? request.httpBody
-        let statusCode = response?.statusCode
         let duration = startTime.map { Date().timeIntervalSince($0) }
-        let errorString = error.map { String(describing: $0) }
 
+        performLogAndTrack(
+            entryType: entryType,
+            headers: headers,
+            body: body,
+            duration: duration,
+            requestId: requestId
+        )
+    }
+
+    private func performLogAndTrack(
+        entryType: EntryType,
+        headers: [String: String]?,
+        body: Data?,
+        duration: TimeInterval?,
+        requestId: String,
+        operationName: String? = nil,
+        query: String? = nil,
+        variables: [String: any Sendable]? = nil
+    ) {
+        let timestamp = Date()
         // Log if logger is available
-        if let logger = logger {
-            let logEntryType: EntryType
-            switch type {
-            case "request":
-                logEntryType = .request(method: method, url: url)
-            case "response":
-                logEntryType = .response(method: method, url: url, statusCode: statusCode ?? 0)
-            case "error":
-                logEntryType = .error(method: method, url: url, error: errorString ?? "Unknown error")
-            default:
-                logEntryType = .request(method: method, url: url)
-            }
-
+        if let logger {
             let logEntry = LogEntry(
-                type: logEntryType,
+                type: entryType,
                 headers: headers,
                 body: body,
+                timestamp: timestamp,
                 duration: duration,
-                requestId: requestId
+                requestId: requestId,
+                operationName: operationName,
+                query: query,
+                variables: variables
             )
 
-            #if canImport(os.log)
-            // Log to OSLog with proper privacy
-            let level: OSLogType = {
-                switch logEntry.type {
-                case .error:
-                    .error
-                case let .response(_, _, statusCode):
-                    (statusCode ?? 200) >= 400 ? .error : .info
-                case .request:
-                    .info
-                }
-            }()
-
             let message = logEntry.buildMessage(configuration: logger)
+            #if canImport(os.log)
             switch logger.privacy {
             case .none:
-                logger.logger.log(level: level, "\(message, privacy: .public)")
+                logger.logger.log(level: logEntry.level, "\(message, privacy: OSLogPrivacy.public)")
             case .auto:
-                logger.logger.log(level: level, "\(message, privacy: .auto)")
+                logger.logger.log(level: logEntry.level, "\(message, privacy: OSLogPrivacy.auto)")
             case .private:
-                logger.logger.log(level: level, "\(message, privacy: .private)")
+                logger.logger.log(level: logEntry.level, "\(message, privacy: OSLogPrivacy.private)")
             case .sensitive:
-                logger.logger.log(level: level, "\(message, privacy: .sensitive)")
+                logger.logger.log(level: logEntry.level, "\(message, privacy: OSLogPrivacy.sensitive)")
             }
             #endif
         }
 
         // Track analytics if available
-        if let analytics = analytics {
-            let analyticEntryType: EntryType
-            switch type {
-            case "request":
-                analyticEntryType = .request(method: method, url: url)
-            case "response":
-                analyticEntryType = .response(method: method, url: url, statusCode: statusCode ?? 0)
-            case "error":
-                analyticEntryType = .error(method: method, url: url, error: errorString ?? "Unknown error")
-            default:
-                analyticEntryType = .request(method: method, url: url)
-            }
-
+        if let analytics {
             let analyticEntry = AnalyticEntry(
-                type: analyticEntryType,
+                type: entryType,
                 headers: headers,
                 body: body,
+                timestamp: timestamp,
                 duration: duration,
                 requestId: requestId,
+                operationName: operationName,
+                variables: variables,
                 configuration: analytics.configuration
             )
             analytics.track(analyticEntry)

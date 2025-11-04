@@ -24,4 +24,17 @@ public enum LogPrivacy: String, CaseIterable, Sendable {
     /// Default privacy level that respects user privacy.
     /// The default value is `.auto`.
     public static let `default`: LogPrivacy = .auto
+
+    var level: OSLogPrivacy {
+        switch self {
+        case .none:
+            OSLogPrivacy.public
+        case .auto:
+            OSLogPrivacy.auto
+        case .private:
+            OSLogPrivacy.private
+        case .sensitive:
+            OSLogPrivacy.sensitive
+        }
+    }
 }
