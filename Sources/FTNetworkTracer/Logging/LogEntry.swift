@@ -2,6 +2,7 @@ import Foundation
 #if canImport(os.log)
 import os.log
 #endif
+
 /// Represents a log entry for logging network activity.
 ///
 /// This struct contains all the data needed to log network requests, responses, and errors.
@@ -79,10 +80,10 @@ struct LogEntry: NetworkEntry {
             message += formatHeaders(maxTitleLength: maxTitleLength)
 
             // GraphQL-specific
-            message += formatGraphQLRequestInfo(maxTitleLength: maxTitleLength, configuration: configuration)
+            message += formatGraphQLInfo(maxTitleLength: maxTitleLength)
 
             // REST-specific
-            message += formatBody(configuration: configuration)
+            message += RESTFormatter.formatBody(body, decoder: configuration.dataDecoder, type: type)
 
             return message
 
@@ -107,7 +108,7 @@ struct LogEntry: NetworkEntry {
             }
 
             message += formatHeaders(maxTitleLength: maxTitleLength)
-            message += formatBody(configuration: configuration)
+            message += RESTFormatter.formatBody(body, decoder: configuration.dataDecoder, type: type)
 
             return message
 
@@ -121,13 +122,13 @@ struct LogEntry: NetworkEntry {
             message += format(title: "ERROR", text: error, maxTitleLength: maxTitleLength)
             message += format(title: "Timestamp", text: timestampString, maxTitleLength: maxTitleLength)
 
-            message += formatBody(configuration: configuration)
+            message += RESTFormatter.formatBody(body, decoder: configuration.dataDecoder, type: type)
 
             return message
         }
     }
 
-    // MARK: - Mutual Formatting Helpers
+    // MARK: - Formatting Helpers
 
     private func calculateMaxTitleLength(for titles: [String]) -> Int {
         var allTitles = titles
@@ -164,24 +165,9 @@ struct LogEntry: NetworkEntry {
         return message
     }
 
-    // MARK: - REST Formatting
-
-    private func formatBody(configuration: LoggerConfiguration) -> String {
-        guard let body, let bodyString = configuration.dataDecoder(body) else { return "" }
-
-        switch type {
-        case .request:
-            return "\n\tBody:\n \(bodyString)"
-        case .response:
-            return "\nBody:\n \(bodyString)"
-        case .error:
-            return "\nData: \(bodyString)"
-        }
-    }
-
     // MARK: - GraphQL Formatting
 
-    private func formatGraphQLRequestInfo(maxTitleLength: Int, configuration: LoggerConfiguration) -> String {
+    private func formatGraphQLInfo(maxTitleLength: Int) -> String {
         var message = ""
         if let operationName {
             message += format(title: "Operation", text: operationName, maxTitleLength: maxTitleLength)
@@ -189,198 +175,13 @@ struct LogEntry: NetworkEntry {
 
         if let query {
             message += "\nQuery:"
-            message += formatGraphQLQuery(query)
+            message += GraphQLFormatter.formatQuery(query)
         }
 
         if let variables, !variables.isEmpty {
             message += "\nVariables:"
-            message += formatGraphQLVariables(variables, configuration: configuration)
+            message += GraphQLFormatter.formatVariables(variables)
         }
         return message
-    }
-
-    /// Formats GraphQL query with proper indentation and syntax highlighting
-    private func formatGraphQLQuery(_ query: String) -> String {
-        // Remove __typename as it's noise in logs
-        let cleanedQuery = query.replacingOccurrences(of: "__typename ", with: "")
-
-        var formatted = "\n\t"
-        var indentLevel = 0
-        var currentLine = ""
-        var insideParentheses = false
-        var parenthesesDepth = 0
-        var isFirstLine = true
-        var previousWasClosingBrace = false
-        var pendingField = ""
-
-        for char in cleanedQuery {
-            switch char {
-            case "(":
-                currentLine += String(char)
-                insideParentheses = true
-                parenthesesDepth += 1
-
-            case ")":
-                currentLine += String(char)
-                parenthesesDepth -= 1
-                if parenthesesDepth == 0 {
-                    insideParentheses = false
-                }
-
-            case "{":
-                // Add opening brace on same line
-                if !pendingField.isEmpty {
-                    // We have a pending field, merge it with {
-                    currentLine = pendingField + " {"
-                    pendingField = ""
-                } else {
-                    currentLine += " {"
-                }
-
-                let trimmed = currentLine.trimmingCharacters(in: .whitespaces)
-
-                if indentLevel == 0 {
-                    if isFirstLine {
-                        // Query: - no indent
-                        formatted += trimmed
-                        isFirstLine = false
-                    } else {
-                        // query or fragment - one tab
-                        if previousWasClosingBrace {
-                            formatted += "\n"
-                        }
-                        formatted += "\n\t" + trimmed
-                    }
-                } else {
-                    // Nested content
-                    let indent = String(repeating: "  ", count: indentLevel + 1)
-                    formatted += "\n\t" + indent + trimmed
-                }
-
-                currentLine = ""
-                indentLevel += 1
-                previousWasClosingBrace = false
-
-            case "}":
-                // Flush pending field if any
-                if !pendingField.isEmpty {
-                    let indent = String(repeating: "  ", count: indentLevel + 1)
-                    formatted += "\n\t" + indent + pendingField
-                    pendingField = ""
-                }
-
-                // Flush any remaining content on current line
-                if !currentLine.trimmingCharacters(in: .whitespaces).isEmpty {
-                    let indent = String(repeating: "  ", count: indentLevel + 1)
-                    formatted += "\n\t" + indent + currentLine.trimmingCharacters(in: .whitespaces)
-                    currentLine = ""
-                }
-
-                indentLevel = max(0, indentLevel - 1)
-
-                if indentLevel == 0 {
-                    formatted += "\n\t}"
-                } else {
-                    let indent = String(repeating: "  ", count: indentLevel + 1)
-                    formatted += "\n\t" + indent + "}"
-                }
-                previousWasClosingBrace = true
-
-            case " ", "\n", "\t":
-                if insideParentheses {
-                    // Keep spaces inside parentheses
-                    currentLine += String(char)
-                } else if !currentLine.trimmingCharacters(in: .whitespaces).isEmpty {
-                    // Check if we're building a query/fragment declaration
-                    let trimmed = currentLine.trimmingCharacters(in: .whitespaces)
-                    if indentLevel == 0 && (trimmed == "query" || trimmed == "fragment" || trimmed == "Query:" || trimmed.hasPrefix("query ") || trimmed.hasPrefix("fragment ")) {
-                        // Keep building the line for query/fragment declaration
-                        currentLine += " "
-                    } else {
-                        // This might be a field before {, store it as pending
-                        pendingField = trimmed
-                        let indent = String(repeating: "  ", count: indentLevel + 1)
-                        formatted += "\n\t" + indent + trimmed
-                        currentLine = ""
-                        previousWasClosingBrace = false
-                    }
-                }
-
-            default:
-                // If we have a pending field and new content starts, clear pending
-                if !pendingField.isEmpty && !currentLine.trimmingCharacters(in: .whitespaces).isEmpty {
-                    pendingField = ""
-                }
-                currentLine += String(char)
-            }
-        }
-
-        // Add any remaining content
-        if !currentLine.trimmingCharacters(in: .whitespaces).isEmpty {
-            let indent = String(repeating: "  ", count: indentLevel + 1)
-            formatted += "\n\t" + indent + currentLine.trimmingCharacters(in: .whitespaces)
-        }
-
-        return formatted
-    }
-
-
-    /// Formats GraphQL variables with pretty-printed JSON
-    private func formatGraphQLVariables(_ variables: [String: any Sendable], configuration: LoggerConfiguration) -> String {
-        let mappedVariables = variables.mapValues { $0 as Any }
-        let cleanedVariables = cleanGraphQLVariables(mappedVariables)
-
-        if JSONSerialization.isValidJSONObject(cleanedVariables),
-           let variablesData = try? JSONSerialization.data(withJSONObject: cleanedVariables, options: [.prettyPrinted, .sortedKeys]),
-           let jsonString = String(data: variablesData, encoding: .utf8) {
-
-            // Add proper indentation to each line of JSON
-            let lines = jsonString.components(separatedBy: .newlines)
-            var formatted = ""
-            for line in lines {
-                formatted += "\n\t\(line)"
-            }
-            return formatted
-        } else {
-            // Fallback to description if JSON serialization fails
-            return "\n\t\(String(describing: variables))"
-        }
-    }
-
-    private func cleanGraphQLValue(_ value: Any) -> Any {
-        let mirror = Mirror(reflecting: value)
-
-        // Handle GraphQLNullable
-        if String(describing: mirror.subjectType).starts(with: "GraphQLNullable") {
-            guard let (_, unwrappedValue) = mirror.children.first else { return NSNull() }
-            return cleanGraphQLValue(unwrappedValue)
-        }
-
-        // Handle standard Swift Optionals
-        if mirror.displayStyle == .optional {
-            guard let (_, unwrappedValue) = mirror.children.first else { return NSNull() }
-            return cleanGraphQLValue(unwrappedValue)
-        }
-
-        // Heuristic for Apollo input objects
-        if mirror.displayStyle == .struct, let data = mirror.descendant("__data", "data") {
-            if let dict = data as? [String: Any] {
-                return cleanGraphQLVariables(dict)
-            }
-        }
-
-        if let dict = value as? [String: Any] {
-            return cleanGraphQLVariables(dict)
-        }
-
-        if let array = value as? [Any] {
-            return array.map { cleanGraphQLValue($0) }
-        }
-
-        return value
-    }
-
-    private func cleanGraphQLVariables(_ variables: [String: Any]) -> [String: Any] {
-        return variables.mapValues { cleanGraphQLValue($0) }
     }
 }
