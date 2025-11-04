@@ -201,31 +201,65 @@ struct LogEntry: NetworkEntry {
 
     /// Formats GraphQL query with proper indentation and syntax highlighting
     private func formatGraphQLQuery(_ query: String) -> String {
-        let lines = query.components(separatedBy: .newlines)
+        // Remove __typename as it's noise in logs
+        let cleanedQuery = query.replacingOccurrences(of: "__typename ", with: "")
+
         var formatted = ""
         var indentLevel = 0
+        var currentToken = ""
+        var insideBraces = false
 
-        for line in lines {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            guard !trimmed.isEmpty else { continue }
-
-            // Decrease indent for closing braces
-            if trimmed.hasPrefix("}") {
-                indentLevel = max(0, indentLevel - 1)
-            }
-
-            // Add indented line
-            let indent = String(repeating: "  ", count: indentLevel + 2)
-            formatted += "\n\t\(indent)\(trimmed)"
-
-            // Increase indent for opening braces
-            if trimmed.hasSuffix("{") && !trimmed.hasPrefix("}") {
+        for char in cleanedQuery {
+            switch char {
+            case "{":
+                // Add current token before opening brace
+                if !currentToken.trimmingCharacters(in: .whitespaces).isEmpty {
+                    let indent = String(repeating: "  ", count: indentLevel + 1)
+                    formatted += "\n\t\(indent)\(currentToken.trimmingCharacters(in: .whitespaces)) {"
+                    currentToken = ""
+                } else {
+                    let indent = String(repeating: "  ", count: indentLevel + 1)
+                    formatted += "\n\t\(indent){"
+                }
                 indentLevel += 1
+                insideBraces = true
+
+            case "}":
+                // Flush any remaining token
+                if !currentToken.trimmingCharacters(in: .whitespaces).isEmpty {
+                    let indent = String(repeating: "  ", count: indentLevel + 1)
+                    formatted += "\n\t\(indent)\(currentToken.trimmingCharacters(in: .whitespaces))"
+                    currentToken = ""
+                }
+                indentLevel = max(0, indentLevel - 1)
+                let indent = String(repeating: "  ", count: indentLevel + 1)
+                formatted += "\n\t\(indent)}"
+                insideBraces = indentLevel > 0
+
+            case " ":
+                if insideBraces && !currentToken.trimmingCharacters(in: .whitespaces).isEmpty {
+                    // Space inside braces means new field
+                    let indent = String(repeating: "  ", count: indentLevel + 1)
+                    formatted += "\n\t\(indent)\(currentToken.trimmingCharacters(in: .whitespaces))"
+                    currentToken = ""
+                } else if !currentToken.isEmpty {
+                    currentToken += String(char)
+                }
+
+            default:
+                currentToken += String(char)
             }
+        }
+
+        // Add any remaining content
+        if !currentToken.trimmingCharacters(in: .whitespaces).isEmpty {
+            let indent = String(repeating: "  ", count: indentLevel + 1)
+            formatted += "\n\t\(indent)\(currentToken.trimmingCharacters(in: .whitespaces))"
         }
 
         return formatted
     }
+
 
     /// Formats GraphQL variables with pretty-printed JSON
     private func formatGraphQLVariables(_ variables: [String: any Sendable], configuration: LoggerConfiguration) -> String {
