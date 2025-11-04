@@ -204,57 +204,102 @@ struct LogEntry: NetworkEntry {
         // Remove __typename as it's noise in logs
         let cleanedQuery = query.replacingOccurrences(of: "__typename ", with: "")
 
-        var formatted = ""
+        var formatted = "\n\t"
         var indentLevel = 0
-        var currentToken = ""
-        var insideBraces = false
+        var currentLine = ""
+        var insideParentheses = false
+        var parenthesesDepth = 0
+        var isFirstLine = true
+        var previousWasClosingBrace = false
 
         for char in cleanedQuery {
             switch char {
-            case "{":
-                // Add current token before opening brace
-                if !currentToken.trimmingCharacters(in: .whitespaces).isEmpty {
-                    let indent = String(repeating: "  ", count: indentLevel + 1)
-                    formatted += "\n\t\(indent)\(currentToken.trimmingCharacters(in: .whitespaces)) {"
-                    currentToken = ""
-                } else {
-                    let indent = String(repeating: "  ", count: indentLevel + 1)
-                    formatted += "\n\t\(indent){"
+            case "(":
+                currentLine += String(char)
+                insideParentheses = true
+                parenthesesDepth += 1
+
+            case ")":
+                currentLine += String(char)
+                parenthesesDepth -= 1
+                if parenthesesDepth == 0 {
+                    insideParentheses = false
                 }
+
+            case "{":
+                // Add opening brace on same line
+                currentLine += " {"
+
+                let trimmed = currentLine.trimmingCharacters(in: .whitespaces)
+
+                if indentLevel == 0 {
+                    if isFirstLine {
+                        // Query: - no indent
+                        formatted += trimmed
+                        isFirstLine = false
+                    } else {
+                        // query or fragment - one tab
+                        if previousWasClosingBrace {
+                            formatted += "\n"
+                        }
+                        formatted += "\n\t" + trimmed
+                    }
+                } else {
+                    // Nested content
+                    let indent = String(repeating: "  ", count: indentLevel + 1)
+                    formatted += "\n\t" + indent + trimmed
+                }
+
+                currentLine = ""
                 indentLevel += 1
-                insideBraces = true
+                previousWasClosingBrace = false
 
             case "}":
-                // Flush any remaining token
-                if !currentToken.trimmingCharacters(in: .whitespaces).isEmpty {
+                // Flush any remaining content on current line
+                if !currentLine.trimmingCharacters(in: .whitespaces).isEmpty {
                     let indent = String(repeating: "  ", count: indentLevel + 1)
-                    formatted += "\n\t\(indent)\(currentToken.trimmingCharacters(in: .whitespaces))"
-                    currentToken = ""
+                    formatted += "\n\t" + indent + currentLine.trimmingCharacters(in: .whitespaces)
+                    currentLine = ""
                 }
-                indentLevel = max(0, indentLevel - 1)
-                let indent = String(repeating: "  ", count: indentLevel + 1)
-                formatted += "\n\t\(indent)}"
-                insideBraces = indentLevel > 0
 
-            case " ":
-                if insideBraces && !currentToken.trimmingCharacters(in: .whitespaces).isEmpty {
-                    // Space inside braces means new field
+                indentLevel = max(0, indentLevel - 1)
+
+                if indentLevel == 0 {
+                    formatted += "\n\t}"
+                } else {
                     let indent = String(repeating: "  ", count: indentLevel + 1)
-                    formatted += "\n\t\(indent)\(currentToken.trimmingCharacters(in: .whitespaces))"
-                    currentToken = ""
-                } else if !currentToken.isEmpty {
-                    currentToken += String(char)
+                    formatted += "\n\t" + indent + "}"
+                }
+                previousWasClosingBrace = true
+
+            case " ", "\n", "\t":
+                if insideParentheses {
+                    // Keep spaces inside parentheses
+                    currentLine += String(char)
+                } else if !currentLine.trimmingCharacters(in: .whitespaces).isEmpty {
+                    // Check if we're building a query/fragment declaration
+                    let trimmed = currentLine.trimmingCharacters(in: .whitespaces)
+                    if indentLevel == 0 && (trimmed == "query" || trimmed == "fragment" || trimmed == "Query:" || trimmed.hasPrefix("query ") || trimmed.hasPrefix("fragment ")) {
+                        // Keep building the line for query/fragment declaration
+                        currentLine += " "
+                    } else {
+                        // New field - flush current line
+                        let indent = String(repeating: "  ", count: indentLevel + 1)
+                        formatted += "\n\t" + indent + trimmed
+                        currentLine = ""
+                        previousWasClosingBrace = false
+                    }
                 }
 
             default:
-                currentToken += String(char)
+                currentLine += String(char)
             }
         }
 
         // Add any remaining content
-        if !currentToken.trimmingCharacters(in: .whitespaces).isEmpty {
+        if !currentLine.trimmingCharacters(in: .whitespaces).isEmpty {
             let indent = String(repeating: "  ", count: indentLevel + 1)
-            formatted += "\n\t\(indent)\(currentToken.trimmingCharacters(in: .whitespaces))"
+            formatted += "\n\t" + indent + currentLine.trimmingCharacters(in: .whitespaces)
         }
 
         return formatted
