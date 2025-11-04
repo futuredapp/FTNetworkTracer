@@ -6,7 +6,8 @@ import Foundation
 /// in analytics. It allows you to specify which headers, URL query parameters,
 /// and body/variable parameters should not be masked.
 public struct AnalyticsConfiguration : Sendable {
-    private let privacy: AnalyticsPrivacy
+    /// The privacy level for data masking.
+    public let privacy: AnalyticsPrivacy
     private let unmaskedHeaders: Set<String>
     private let unmaskedUrlQueries: Set<String>
     private let unmaskedBodyParams: Set<String>
@@ -33,9 +34,9 @@ public struct AnalyticsConfiguration : Sendable {
     /// Default analytics configuration with sensitive privacy
     public static let `default` = AnalyticsConfiguration(privacy: .sensitive)
 
-    // MARK: - Public Masking Methods
+    // MARK: - Internal Masking Methods
 
-    public func maskUrl(_ url: String?) -> String? {
+    func maskUrl(_ url: String?) -> String? {
         guard let url = url else { return nil }
 
         switch privacy {
@@ -73,7 +74,7 @@ public struct AnalyticsConfiguration : Sendable {
         return maskedComponents.url?.absoluteString ?? url
     }
 
-    public func maskHeaders(_ headers: [String: String]?) -> [String: String]? {
+    func maskHeaders(_ headers: [String: String]?) -> [String: String]? {
         guard let headers = headers else { return nil }
 
         switch privacy {
@@ -94,7 +95,7 @@ public struct AnalyticsConfiguration : Sendable {
         }
     }
 
-    public func maskBody(_ body: Data?) -> Data? {
+    func maskBody(_ body: Data?) -> Data? {
         guard let body = body else { return nil }
 
         switch privacy {
@@ -107,7 +108,7 @@ public struct AnalyticsConfiguration : Sendable {
         }
     }
 
-    public func maskVariables(_ variables: [String: any Sendable]?) -> [String: any Sendable]? {
+    func maskVariables(_ variables: [String: any Sendable]?) -> [String: any Sendable]? {
         guard let variables = variables else { return nil }
 
         switch privacy {
