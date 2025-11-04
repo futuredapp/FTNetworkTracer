@@ -211,6 +211,7 @@ struct LogEntry: NetworkEntry {
         var parenthesesDepth = 0
         var isFirstLine = true
         var previousWasClosingBrace = false
+        var pendingField = ""
 
         for char in cleanedQuery {
             switch char {
@@ -228,7 +229,13 @@ struct LogEntry: NetworkEntry {
 
             case "{":
                 // Add opening brace on same line
-                currentLine += " {"
+                if !pendingField.isEmpty {
+                    // We have a pending field, merge it with {
+                    currentLine = pendingField + " {"
+                    pendingField = ""
+                } else {
+                    currentLine += " {"
+                }
 
                 let trimmed = currentLine.trimmingCharacters(in: .whitespaces)
 
@@ -255,6 +262,13 @@ struct LogEntry: NetworkEntry {
                 previousWasClosingBrace = false
 
             case "}":
+                // Flush pending field if any
+                if !pendingField.isEmpty {
+                    let indent = String(repeating: "  ", count: indentLevel + 1)
+                    formatted += "\n\t" + indent + pendingField
+                    pendingField = ""
+                }
+
                 // Flush any remaining content on current line
                 if !currentLine.trimmingCharacters(in: .whitespaces).isEmpty {
                     let indent = String(repeating: "  ", count: indentLevel + 1)
@@ -283,7 +297,8 @@ struct LogEntry: NetworkEntry {
                         // Keep building the line for query/fragment declaration
                         currentLine += " "
                     } else {
-                        // New field - flush current line
+                        // This might be a field before {, store it as pending
+                        pendingField = trimmed
                         let indent = String(repeating: "  ", count: indentLevel + 1)
                         formatted += "\n\t" + indent + trimmed
                         currentLine = ""
@@ -292,6 +307,10 @@ struct LogEntry: NetworkEntry {
                 }
 
             default:
+                // If we have a pending field and new content starts, clear pending
+                if !pendingField.isEmpty && !currentLine.trimmingCharacters(in: .whitespaces).isEmpty {
+                    pendingField = ""
+                }
                 currentLine += String(char)
             }
         }
