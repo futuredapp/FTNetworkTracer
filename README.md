@@ -28,7 +28,7 @@ A Swift package for comprehensive network request logging and analytics tracking
 ### Swift Package Manager
 
 ```swift
-    .package(url: "https://github.com/yourusername/FTNetworkTracer.git", from: "1.0.0")
+    .package(url: "https://github.com/futuredapp/FTNetworkTracer.git", from: "1.0.0")
 ```
 
 ## Quick Start
