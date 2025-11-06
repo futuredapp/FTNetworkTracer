@@ -5,7 +5,7 @@ import Foundation
 /// This struct defines the privacy level and exceptions for masking sensitive data
 /// in analytics. It allows you to specify which headers, URL query parameters,
 /// and body/variable parameters should not be masked.
-public struct AnalyticsConfiguration : Sendable {
+public struct AnalyticsConfiguration: Sendable {
     /// The privacy level for data masking.
     public let privacy: AnalyticsPrivacy
     private let unmaskedHeaders: Set<String>
@@ -37,7 +37,9 @@ public struct AnalyticsConfiguration : Sendable {
     // MARK: - Internal Masking Methods
 
     func maskUrl(_ url: String?) -> String? {
-        guard let url = url else { return nil }
+        guard let url else {
+            return nil
+        }
 
         switch privacy {
         case .none:
@@ -51,7 +53,9 @@ public struct AnalyticsConfiguration : Sendable {
 
     private func maskPrivateUrlQueries(_ url: String) -> String {
         guard let urlComponents = URLComponents(string: url),
-              let queryItems = urlComponents.queryItems else { return url }
+              let queryItems = urlComponents.queryItems else {
+            return url
+        }
 
         let maskedQueryItems = queryItems.map { item -> URLQueryItem in
             if unmaskedUrlQueries.contains(item.name.lowercased()) {
@@ -66,7 +70,9 @@ public struct AnalyticsConfiguration : Sendable {
     }
 
     private func maskSensitiveUrlQueries(_ url: String) -> String {
-        guard let urlComponents = URLComponents(string: url) else { return url }
+        guard let urlComponents = URLComponents(string: url) else {
+            return url
+        }
 
         var maskedComponents = urlComponents
         maskedComponents.query = nil
@@ -75,7 +81,9 @@ public struct AnalyticsConfiguration : Sendable {
     }
 
     func maskHeaders(_ headers: [String: String]?) -> [String: String]? {
-        guard let headers = headers else { return nil }
+        guard let headers else {
+            return nil
+        }
 
         switch privacy {
         case .none:
@@ -96,7 +104,9 @@ public struct AnalyticsConfiguration : Sendable {
     }
 
     func maskBody(_ body: Data?) -> Data? {
-        guard let body = body else { return nil }
+        guard let body else {
+            return nil
+        }
 
         switch privacy {
         case .none:
@@ -109,7 +119,9 @@ public struct AnalyticsConfiguration : Sendable {
     }
 
     func maskVariables(_ variables: [String: any Sendable]?) -> [String: any Sendable]? {
-        guard let variables = variables else { return nil }
+        guard let variables else {
+            return nil
+        }
 
         switch privacy {
         case .none:
@@ -124,7 +136,7 @@ public struct AnalyticsConfiguration : Sendable {
 
     private func maskPrivateBodyParams(_ body: Data) -> Data? {
         guard let json = try? JSONSerialization.jsonObject(with: body) else {
-            return "***".data(using: .utf8)
+            return Data("***".utf8)
         }
 
         let maskedJson = recursivelyMask(json)

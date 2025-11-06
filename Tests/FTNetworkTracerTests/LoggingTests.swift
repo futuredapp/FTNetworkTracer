@@ -1,8 +1,8 @@
-import XCTest
+// swiftlint:disable force_unwrapping non_optional_string_data_conversion
 @testable import FTNetworkTracer
+import XCTest
 
 class LoggingTests: XCTestCase {
-
     func testLoggerConfigurationInitialization() {
         let configuration = LoggerConfiguration(
             subsystem: "com.test",

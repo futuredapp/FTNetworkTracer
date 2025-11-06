@@ -1,8 +1,8 @@
-import XCTest
+// swiftlint:disable force_unwrapping non_optional_string_data_conversion
 @testable import FTNetworkTracer
+import XCTest
 
 class RESTFormatterTests: XCTestCase {
-
     func testFormatRequestBodyWithJSON() {
         let jsonData = """
         {"username": "john", "email": "john@example.com"}
@@ -72,7 +72,7 @@ class RESTFormatterTests: XCTestCase {
         let data = Data([0xFF, 0xFE]) // Invalid UTF-8
 
         let decoder: @Sendable (Data) -> String? = { _ in
-            return nil
+            nil
         }
 
         let type = EntryType.request(method: "POST", url: "https://example.com")

@@ -15,7 +15,7 @@ let package = Package(
         .library(
             name: "FTNetworkTracer",
             targets: ["FTNetworkTracer"]
-        ),
+        )
     ],
     targets: [
         .target(
@@ -25,7 +25,6 @@ let package = Package(
         .testTarget(
             name: "FTNetworkTracerTests",
             dependencies: ["FTNetworkTracer"]
-        ),
+        )
     ]
 )
-

@@ -5,7 +5,6 @@
 //  Created by Simon Sestak on 04/11/2025.
 //
 
-
 import Foundation
 
 /// Utility for formatting GraphQL queries and mutations for logging
@@ -17,7 +16,9 @@ enum GraphQLFormatter {
     /// - `query` and `fragment` declarations are indented with one tab and kept on single line
     /// - Field followed by `{` is kept on single line (e.g., `userInterests {`)
     /// - Nested content is indented with spaces
-    static func formatQuery(_ query: String) -> String {
+    ///
+    /// Note: This function is intentionally complex to handle GraphQL formatting edge cases
+    static func formatQuery(_ query: String) -> String { // swiftlint:disable:this cyclomatic_complexity function_body_length
         // Remove __typename as it's noise in logs
         let cleanedQuery = query.replacingOccurrences(of: "__typename ", with: "")
 
@@ -163,7 +164,6 @@ enum GraphQLFormatter {
         if JSONSerialization.isValidJSONObject(cleanedVariables),
            let variablesData = try? JSONSerialization.data(withJSONObject: cleanedVariables, options: [.prettyPrinted, .sortedKeys]),
            let jsonString = String(data: variablesData, encoding: .utf8) {
-
             // Add proper indentation to each line of JSON
             let lines = jsonString.components(separatedBy: .newlines)
             var formatted = ""
@@ -184,13 +184,17 @@ enum GraphQLFormatter {
 
         // Handle GraphQLNullable
         if String(describing: mirror.subjectType).starts(with: "GraphQLNullable") {
-            guard let (_, unwrappedValue) = mirror.children.first else { return NSNull() }
+            guard let (_, unwrappedValue) = mirror.children.first else {
+                return NSNull()
+            }
             return cleanValue(unwrappedValue)
         }
 
         // Handle standard Swift Optionals
         if mirror.displayStyle == .optional {
-            guard let (_, unwrappedValue) = mirror.children.first else { return NSNull() }
+            guard let (_, unwrappedValue) = mirror.children.first else {
+                return NSNull()
+            }
             return cleanValue(unwrappedValue)
         }
 
@@ -213,6 +217,6 @@ enum GraphQLFormatter {
     }
 
     private static func cleanVariables(_ variables: [String: Any]) -> [String: Any] {
-        return variables.mapValues { cleanValue($0) }
+        variables.mapValues { cleanValue($0) }
     }
 }

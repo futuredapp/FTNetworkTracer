@@ -1,9 +1,9 @@
-import XCTest
+// swiftlint:disable force_unwrapping non_optional_string_data_conversion file_length type_body_length number_separator
 @testable import FTNetworkTracer
+import XCTest
 
 /// Comprehensive security tests to ensure sensitive data is properly masked
 class SecurityTests: XCTestCase {
-
     // MARK: - Default Configuration Security
 
     func testDefaultAnalyticsConfigurationIsSensitive() {
@@ -511,7 +511,6 @@ class SecurityTests: XCTestCase {
 
         if let bodyData = entry.body,
            let bodyJSON = try? JSONSerialization.jsonObject(with: bodyData) as? [String: Any] {
-
             // public_ids should not be masked
             let publicIds = bodyJSON["public_ids"] as? [String]
             XCTAssertEqual(publicIds, ["1", "2", "3"])

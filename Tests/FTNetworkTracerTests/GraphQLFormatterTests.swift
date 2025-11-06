@@ -1,8 +1,7 @@
-import XCTest
 @testable import FTNetworkTracer
+import XCTest
 
 class GraphQLFormatterTests: XCTestCase {
-
     func testSimpleQuery() {
         let query = "query GetUser { user { name email } }"
         let formatted = GraphQLFormatter.formatQuery(query)

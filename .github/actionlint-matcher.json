@@ -1,0 +1,17 @@
+{
+  "problemMatcher": [
+    {
+      "owner": "actionlint",
+      "pattern": [
+        {
+          "regexp": "^(?:\u001b\\[\\d+m)?(.+?)(?:\u001b\\[\\d+m)?:(?:\u001b\\[\\d+m)?(\\d+)(?:\u001b\\[\\d+m)?:(?:\u001b\\[\\d+m)?(\\d+)(?:\u001b\\[\\d+m)?:\\s+(.+?)\\s+\\[(.+?)\\]$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "message": 4,
+          "code": 5
+        }
+      ]
+    }
+  ]
+}

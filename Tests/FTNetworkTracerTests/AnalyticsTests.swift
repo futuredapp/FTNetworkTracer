@@ -1,9 +1,9 @@
+// swiftlint:disable force_unwrapping force_cast force_try non_optional_string_data_conversion
 import Foundation
-import XCTest
 @testable import FTNetworkTracer
+import XCTest
 
 class AnalyticsTests: XCTestCase {
-
     func testSensitivePrivacy() {
         let config = AnalyticsConfiguration(
             privacy: .sensitive,

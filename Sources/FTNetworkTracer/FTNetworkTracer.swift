@@ -6,7 +6,6 @@ import os.log
 public class FTNetworkTracer {
     private let logger: LoggerConfiguration?
     private let analytics: AnalyticsProtocol?
-//    public var graphqlURL: URL?
 
     public init(logger: LoggerConfiguration?, analytics: AnalyticsProtocol?) {
         self.logger = logger
@@ -33,7 +32,9 @@ public class FTNetworkTracer {
         requestId: String,
         startTime: Date
     ) {
-        guard let httpResponse = response as? HTTPURLResponse else { return }
+        guard let httpResponse = response as? HTTPURLResponse else {
+            return
+        }
 
         logAndTrack(
             entryType: .response(
@@ -42,9 +43,9 @@ public class FTNetworkTracer {
                 statusCode: httpResponse.statusCode
             ),
             request: request,
+            requestId: requestId,
             response: httpResponse,
             data: data,
-            requestId: requestId,
             startTime: startTime
         )
     }
@@ -73,7 +74,7 @@ public class FTNetworkTracer {
         query: String,
         variables: [String: any Sendable]?,
         headers: [String: String]?,
-        requestId: String
+        requestId: String = UUID().uuidString
     ) {
         performLogAndTrack(
             entryType: .request(method: "POST", url: url ?? "UNKNOWN"),
@@ -125,9 +126,9 @@ public class FTNetworkTracer {
     private func logAndTrack(
         entryType: EntryType,
         request: URLRequest,
+        requestId: String,
         response: HTTPURLResponse? = nil,
         data: Data? = nil,
-        requestId: String,
         startTime: Date? = nil
     ) {
         let headers = response?.allHeaderFields as? [String: String] ?? request.allHTTPHeaderFields

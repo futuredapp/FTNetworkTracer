@@ -29,7 +29,9 @@ struct LogEntry: NetworkEntry {
         case .error:
             return .error
         case let .response(_, _, statusCode):
-            guard let statusCode = statusCode else { return .info }
+            guard let statusCode else {
+                return .info
+            }
             return statusCode >= 400 ? .error : .info
         case .request:
             return .info
@@ -104,7 +106,7 @@ struct LogEntry: NetworkEntry {
             message += format(title: "Timestamp", text: timestampString, maxTitleLength: maxTitleLength)
 
             if let duration {
-                message += format(title: "Duration", text: "\(String(format: "%.2f", duration * 1000))ms", maxTitleLength: maxTitleLength)
+                message += format(title: "Duration", text: "\(String(format: "%.2f", duration * 1_000))ms", maxTitleLength: maxTitleLength)
             }
 
             message += formatHeaders(maxTitleLength: maxTitleLength)
@@ -154,7 +156,9 @@ struct LogEntry: NetworkEntry {
     }
 
     private func formatHeaders(maxTitleLength: Int) -> String {
-        guard let headers, !headers.isEmpty else { return "" }
+        guard let headers, !headers.isEmpty else {
+            return ""
+        }
 
         var message = "\nHeaders:"
         // Sort headers by key to ensure consistent ordering
