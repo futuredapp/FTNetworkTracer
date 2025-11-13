@@ -12,6 +12,8 @@ A Swift package for comprehensive network request logging and analytics tracking
 - 🔒 **Privacy-first design**: Configurable data masking with three privacy levels
 - 🌐 **REST & GraphQL support**: Specialized formatting for both API types
 - 📊 **Structured logging**: Uses `os.log` for performance and privacy
+- 🎚️ **Log level filtering**: Configurable minimum threshold (debug, info, error, fault)
+- 🐧 **Linux support**: Full cross-platform compatibility with CI/CD
 - 🎯 **Type-safe**: Associated values eliminate impossible states
 - ⚡ **Zero dependencies**: Pure Swift implementation
 - 🧪 **Fully tested**: 65+ tests including comprehensive security tests
@@ -28,7 +30,7 @@ A Swift package for comprehensive network request logging and analytics tracking
 ### Swift Package Manager
 
 ```swift
-    .package(url: "https://github.com/futuredapp/FTNetworkTracer.git", from: "0.1.0")
+    .package(url: "https://github.com/futuredapp/FTNetworkTracer.git", from: "0.2.0")
 ```
 
 ## Quick Start
@@ -133,6 +135,13 @@ let logger = LoggerConfiguration(
     subsystem: "com.yourapp",
     category: "network",
     privacy: .auto // .none, .auto, .private, .sensitive
+)
+
+// With log level filtering (only show errors and faults)
+let logger = LoggerConfiguration(
+    subsystem: "com.yourapp",
+    category: "network",
+    logLevel: .error // .debug, .info, .error, .fault
 )
 
 // Custom data decoder (e.g., show only size)
