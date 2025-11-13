@@ -1,4 +1,4 @@
-// swiftlint:disable force_unwrapping non_optional_string_data_conversion
+// swiftlint:disable force_unwrapping non_optional_string_data_conversion type_body_length
 @testable import FTNetworkTracer
 import XCTest
 #if canImport(FoundationNetworking)
