@@ -4,9 +4,19 @@ on:
   push:
     branches:
       - main
+    paths:
+      - '**/*.swift'
+      - 'Package.swift'
+      - 'Package.resolved'
+      - '.github/workflows/test.yml'
   pull_request:
     branches:
       - '*'
+    paths:
+      - '**/*.swift'
+      - 'Package.swift'
+      - 'Package.resolved'
+      - '.github/workflows/test.yml'
 
 jobs:
   macos:
