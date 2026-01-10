@@ -12,8 +12,7 @@ class RESTFormatterTests: XCTestCase {
             String(data: data, encoding: .utf8)
         }
 
-        let type = EntryType.request(method: "POST", url: "https://example.com")
-        let formatted = RESTFormatter.formatBody(jsonData, decoder: decoder, type: type)
+        let formatted = RESTFormatter.formatBody(jsonData, decoder: decoder, label: "Body")
 
         XCTAssertTrue(formatted.contains("Body:"))
         XCTAssertTrue(formatted.contains("username"))
@@ -30,8 +29,7 @@ class RESTFormatterTests: XCTestCase {
             String(data: data, encoding: .utf8)
         }
 
-        let type = EntryType.response(method: "POST", url: "https://example.com", statusCode: 200)
-        let formatted = RESTFormatter.formatBody(jsonData, decoder: decoder, type: type)
+        let formatted = RESTFormatter.formatBody(jsonData, decoder: decoder, label: "Body")
 
         XCTAssertTrue(formatted.contains("Body:"))
         XCTAssertTrue(formatted.contains("id"))
@@ -49,8 +47,7 @@ class RESTFormatterTests: XCTestCase {
             String(data: data, encoding: .utf8)
         }
 
-        let type = EntryType.error(method: "GET", url: "https://example.com", error: "404")
-        let formatted = RESTFormatter.formatBody(errorData, decoder: decoder, type: type)
+        let formatted = RESTFormatter.formatBody(errorData, decoder: decoder, label: "Data")
 
         XCTAssertTrue(formatted.contains("Data:"))
         XCTAssertTrue(formatted.contains("error"))
@@ -62,8 +59,7 @@ class RESTFormatterTests: XCTestCase {
             String(data: data, encoding: .utf8)
         }
 
-        let type = EntryType.request(method: "GET", url: "https://example.com")
-        let formatted = RESTFormatter.formatBody(nil, decoder: decoder, type: type)
+        let formatted = RESTFormatter.formatBody(nil, decoder: decoder, label: "Body")
 
         XCTAssertEqual(formatted, "")
     }
@@ -75,8 +71,7 @@ class RESTFormatterTests: XCTestCase {
             nil
         }
 
-        let type = EntryType.request(method: "POST", url: "https://example.com")
-        let formatted = RESTFormatter.formatBody(data, decoder: decoder, type: type)
+        let formatted = RESTFormatter.formatBody(data, decoder: decoder, label: "Body")
 
         XCTAssertEqual(formatted, "")
     }
@@ -96,8 +91,7 @@ class RESTFormatterTests: XCTestCase {
             return String(data: data, encoding: .utf8)
         }
 
-        let type = EntryType.request(method: "POST", url: "https://example.com")
-        let formatted = RESTFormatter.formatBody(jsonData, decoder: decoder, type: type)
+        let formatted = RESTFormatter.formatBody(jsonData, decoder: decoder, label: "Body")
 
         XCTAssertTrue(formatted.contains("Body:"))
         // Pretty printed JSON should contain newlines
@@ -111,30 +105,29 @@ class RESTFormatterTests: XCTestCase {
             String(data: data, encoding: .utf8)
         }
 
-        let type = EntryType.response(method: "GET", url: "https://example.com", statusCode: 200)
-        let formatted = RESTFormatter.formatBody(textData, decoder: decoder, type: type)
+        let formatted = RESTFormatter.formatBody(textData, decoder: decoder, label: "Body")
 
         XCTAssertTrue(formatted.contains("Body:"))
         XCTAssertTrue(formatted.contains("Simple text response"))
     }
 
-    func testFormatBodyPrefixDiffersByType() {
+    func testFormatBodyPrefixDiffersByLabel() {
         let data = "test".data(using: .utf8)!
         let decoder: @Sendable (Data) -> String? = { data in
             String(data: data, encoding: .utf8)
         }
 
-        let requestFormatted = RESTFormatter.formatBody(data, decoder: decoder, type: .request(method: "POST", url: ""))
-        XCTAssertTrue(requestFormatted.contains("Body:"))
+        let bodyFormatted = RESTFormatter.formatBody(data, decoder: decoder, label: "Body")
+        XCTAssertTrue(bodyFormatted.contains("Body:"))
 
-        let responseFormatted = RESTFormatter.formatBody(data, decoder: decoder, type: .response(method: "POST", url: "", statusCode: 200))
-        XCTAssertTrue(responseFormatted.contains("Body:"))
+        let dataFormatted = RESTFormatter.formatBody(data, decoder: decoder, label: "Data")
+        XCTAssertTrue(dataFormatted.contains("Data:"))
 
-        let errorFormatted = RESTFormatter.formatBody(data, decoder: decoder, type: .error(method: "POST", url: "", error: "error"))
-        XCTAssertTrue(errorFormatted.contains("Data:"))
+        let responseFormatted = RESTFormatter.formatBody(data, decoder: decoder, label: "Response")
+        XCTAssertTrue(responseFormatted.contains("Response:"))
 
         // Verify they use different prefixes
-        XCTAssertNotEqual(errorFormatted, requestFormatted)
+        XCTAssertNotEqual(dataFormatted, bodyFormatted)
     }
 
     func testFormatBodyWithSizeOnlyDecoder() {
@@ -144,8 +137,7 @@ class RESTFormatterTests: XCTestCase {
             "<\(data.count) bytes>"
         }
 
-        let type = EntryType.request(method: "POST", url: "https://example.com")
-        let formatted = RESTFormatter.formatBody(data, decoder: decoder, type: type)
+        let formatted = RESTFormatter.formatBody(data, decoder: decoder, label: "Body")
 
         XCTAssertTrue(formatted.contains("Body:"))
         XCTAssertTrue(formatted.contains("bytes"))

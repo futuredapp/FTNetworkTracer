@@ -1,24 +1,39 @@
-//
-//  GraphQLFormatter.swift
-//  FTNetworkTracer
-//
-//  Created by Simon Sestak on 04/11/2025.
-//
-
 import Foundation
 
-/// Utility for formatting GraphQL queries and mutations for logging
-enum GraphQLFormatter {
-    /// Formats GraphQL query with proper indentation
+/// Utilities for formatting GraphQL queries and variables.
+///
+/// This enum provides static methods for formatting GraphQL content for
+/// human-readable output. Use these directly when you need to format
+/// just the GraphQL-specific parts of a request.
+///
+/// ## Example Usage
+///
+/// ```swift
+/// let query = """
+///     query GetUser($id: ID!) {
+///         user(id: $id) { name email }
+///     }
+///     """
+///
+/// let formatted = GraphQLFormatter.formatQuery(query)
+/// // Output is properly indented with each field on its own line
+///
+/// let variables = ["id": "user-123", "limit": 10]
+/// let formattedVars = GraphQLFormatter.formatVariables(variables)
+/// // Output is pretty-printed JSON
+/// ```
+public enum GraphQLFormatter {
+    /// Formats a GraphQL query with proper indentation.
     ///
-    /// Rules:
-    /// - `Query:` is unindented
-    /// - `query` and `fragment` declarations are indented with one tab and kept on single line
-    /// - Field followed by `{` is kept on single line (e.g., `userInterests {`)
+    /// The formatting rules are:
+    /// - `query` and `fragment` declarations are indented with one tab
+    /// - Field followed by `{` is kept on the same line (e.g., `userInterests {`)
     /// - Nested content is indented with spaces
+    /// - `__typename` fields are removed as noise
     ///
-    /// Note: This function is intentionally complex to handle GraphQL formatting edge cases
-    static func formatQuery(_ query: String) -> String { // swiftlint:disable:this cyclomatic_complexity function_body_length
+    /// - Parameter query: The raw GraphQL query string
+    /// - Returns: Formatted query with proper indentation
+    public static func formatQuery(_ query: String) -> String { // swiftlint:disable:this cyclomatic_complexity function_body_length
         // Remove __typename as it's noise in logs
         let cleanedQuery = query.replacingOccurrences(of: "__typename ", with: "")
 
@@ -153,11 +168,14 @@ enum GraphQLFormatter {
         return formatted
     }
 
-    /// Formats GraphQL variables with pretty-printed JSON
+    /// Formats GraphQL variables as pretty-printed JSON.
     ///
-    /// - Parameter variables: Dictionary of variables to format
+    /// Variables are cleaned to handle special types like `GraphQLNullable`
+    /// and Apollo input objects before serialization.
+    ///
+    /// - Parameter variables: Dictionary of GraphQL variables
     /// - Returns: Formatted JSON string with proper indentation
-    static func formatVariables(_ variables: [String: any Sendable]) -> String {
+    public static func formatVariables(_ variables: [String: any Sendable]) -> String {
         let mappedVariables = variables.mapValues { $0 as Any }
         let cleanedVariables = cleanVariables(mappedVariables)
 
