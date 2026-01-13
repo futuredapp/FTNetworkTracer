@@ -1,11 +1,18 @@
 import Foundation
 
-/// Masks literal values in GraphQL queries while preserving structure
+/// Masks literal values in GraphQL queries while preserving structure.
+///
+/// This struct processes a GraphQL query and replaces string and numeric literals
+/// inside parentheses (query arguments) with `***`, while preserving:
+/// - Query structure and field names
+/// - Variable references (e.g., `$userId`)
+/// - Type names and directive names
 struct QueryLiteralMasker {
-    /// The masked query with literals replaced by "***"
+    /// The masked query with literals replaced by "***".
     let maskedQuery: String
 
-    /// Initializes a masker and processes the query
+    /// Initializes a masker and processes the query.
+    ///
     /// - Parameter query: The GraphQL query string to mask
     init(query: String) {
         var processor = Processor()
