@@ -4,11 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-FTNetworkTracer is a Swift Package Manager library for logging and tracking network requests. It provides dual functionality:
-1. **Logging** - Formatted console output via `os.log` with privacy controls
-2. **Analytics** - Privacy-masked network data tracking via a protocol-based system
+FTNetworkTracer is a Swift Package Manager library for formatting and masking network trace data. It provides:
+1. **Formatting** - Human-readable console output from network trace entries
+2. **Masking** - Privacy-safe data transformation for analytics
 
-The library supports both REST and GraphQL requests with specialized formatting for each.
+The library supports both REST and GraphQL requests with specialized handling for each.
 
 ## Common Commands
 
@@ -22,9 +22,11 @@ swift build
 # Run all tests
 swift test
 
-# Run a specific test
-swift test --filter LoggingTests
-swift test --filter AnalyticsTests
+# Run specific tests
+swift test --filter FormattingTests
+swift test --filter MaskingTests
+swift test --filter GraphQLFormatterTests
+swift test --filter RESTFormatterTests
 ```
 
 ### Cleaning Build Artifacts
@@ -36,85 +38,90 @@ swift package clean
 
 ### Core Components
 
-**FTNetworkTracer** (`FTNetworkTracer.swift:6`) - Main entry point
-- Dual-mode design: Can be initialized with a logger, analytics tracker, or both
-- Provides separate APIs for REST (via `URLRequest`) and GraphQL (via operation parameters)
-- All requests flow through `performLogAndTrack()` which dispatches to both systems
+**NetworkTraceEntry** (`NetworkTraceEntry.swift`) - Core data structure
+- Unified entry type for request, response, and error events
+- Contains: type, headers, body, timestamp, duration, requestId
+- GraphQL-specific: operationName, query, variables
+- Convenience properties: method, url, statusCode, error, isGraphQL
 
-**Entry System** - Type-safe network data representation
-- `EntryType` (enum): Type-safe representation of request/response/error with associated values (method, URL, status code, error message)
-- `NetworkEntry` (protocol): Common interface for accessing network data
-- `LogEntry` (struct): Internal logging data with message formatting
-- `AnalyticEntry` (struct): Public analytics data with automatic privacy masking
+**EntryType** (`EntryType.swift`) - Type-safe network event representation
+- `.request(method:url:)` - Outgoing request
+- `.response(method:url:statusCode:)` - Server response
+- `.error(method:url:error:)` - Network error
 
-### Logging System
+### Formatting System
 
-Located in `Sources/FTNetworkTracer/Logging/`
+Located in `Sources/FTNetworkTracer/Formatting/`
 
-**LoggerConfiguration** - Configures `os.log` behavior
-- Subsystem and category for log organization
-- Privacy levels (none/auto/private/sensitive)
-- Pluggable data decoders (default JSON pretty-printer, UTF8, size-only)
+**NetworkTraceFormatter** - Main formatting API
+- `format(_ entry:)` - Format with default configuration
+- `format(_ entry:configuration:)` - Format with custom configuration
+- Produces aligned, human-readable output with method, URL, timestamp, headers, body
 
-**Formatters** - Specialized message formatting
-- `GraphQLFormatter`: Formats GraphQL queries with custom indentation rules and pretty-prints variables as JSON
-- `RESTFormatter`: Formats REST request/response bodies using the configured data decoder
+**FormatterConfiguration** - Formatting options
+- `dataDecoder` - How to decode body data (default: pretty JSON with UTF8 fallback)
+- `includeHeaders` - Whether to show headers
+- `includeBody` - Whether to show body
+- `maxBodyLength` - Truncate bodies longer than this
+- Presets: `.default`, `.compact`, `.verbose`
 
-**LogEntry** - Message building
-- Builds formatted log messages with aligned titles
-- Routes to appropriate formatter based on presence of GraphQL data (operationName/query/variables)
-- Automatically sets log level (error vs info) based on status codes and entry type
+**GraphQLFormatter** - GraphQL-specific formatting
+- `formatQuery(_ query:)` - Pretty-prints GraphQL queries with proper indentation
+- `formatVariables(_ variables:)` - Pretty-prints variables as JSON
+- Removes `__typename` noise from queries
 
-### Analytics System
+**RESTFormatter** - REST body formatting
+- `formatBody(_ body:decoder:label:)` - Formats body data with custom decoder
 
-Located in `Sources/FTNetworkTracer/Analytics/`
+### Masking System
 
-**AnalyticsProtocol** - Consumer interface
-- Implement this protocol to receive network events
-- Receive privacy-masked `AnalyticEntry` instances
+Located in `Sources/FTNetworkTracer/Masking/`
 
-**AnalyticsConfiguration** - Privacy controls
-- Define sensitive query parameters, headers, and JSON body keys
-- URL masking automatically strips sensitive query parameters and masks path segments
-- Header/body/variables masking replaces sensitive values with `***`
-- GraphQL query literal masking enabled by default (`maskQueryLiterals: true`)
-  - Masks string literals (`"admin"` → `"***"`) and number literals (`123` → `***`)
-  - Preserves query structure, field selections, and variable references (`$userId`)
-  - Can be disabled with `maskQueryLiterals: false` for teams confident queries contain no sensitive data
+**MaskingUtilities** - Main masking API
+- `mask(_ entry:configuration:)` - Returns new entry with masked data
+- Individual functions: `maskURL`, `maskHeaders`, `maskBody`, `maskVariables`, `maskQuery`
+- Masked value constant: `***`
 
-**AnalyticEntry** - Masked data
-- All masking happens at initialization time based on configuration
-- Variables are deep-masked (handles nested dictionaries and arrays)
-- GraphQL queries include `query` property with literal masking applied
-  - `.none`/`.private` privacy: Query included with optional literal masking
-  - `.sensitive` privacy: Query set to `nil` (most restrictive)
+**MaskingConfiguration** - Masking rules
+- `privacy` - MaskingPrivacy level
+- `maskQueryLiterals` - Whether to mask literals in GraphQL queries (default: true)
+- `unmaskedHeaders` - Header keys to NOT mask (case-insensitive)
+- `unmaskedUrlQueries` - URL query params to NOT mask (case-insensitive)
+- `unmaskedBodyParams` - Body/variable keys to NOT mask (case-insensitive)
+- Presets: `.none`, `.private`, `.sensitive`
+
+**MaskingPrivacy** - Privacy levels
+- `.none` - No masking (development only)
+- `.private` - Selective masking with exceptions
+- `.sensitive` - Aggressive masking (recommended for production)
+
+**QueryLiteralMasker** - GraphQL query literal masking
+- Masks string literals (`"admin"` → `"***"`) and number literals (`123` → `***`)
+- Preserves: query structure, field names, variable references (`$userId`), booleans, nulls, enums
 
 ### Data Flow
 
-1. Network adapter calls `logAndTrackRequest()`, `logAndTrackResponse()`, or `logAndTrackError()`
-2. Request flows to `performLogAndTrack()` with standardized parameters
-3. If logger configured: Creates `LogEntry` → Builds formatted message → Logs via `os.log`
-4. If analytics configured: Creates `AnalyticEntry` (with privacy masking) → Calls `track()`
+1. Consumer creates `NetworkTraceEntry` with network event data
+2. For display: `NetworkTraceFormatter.format(entry)` → Human-readable string
+3. For analytics: `MaskingUtilities.mask(entry, configuration:)` → Privacy-masked entry
 
 ### Key Design Patterns
 
 **Associated Values for Type Safety**
 - `EntryType` uses associated values instead of optionals
 - Eliminates impossible states (e.g., request can't have status code)
-- Access via computed properties on `NetworkEntry` protocol
+- Access via computed properties on `NetworkTraceEntry`
 
 **Dual-Mode Formatters**
 - GraphQL detected by presence of `operationName`, `query`, or `variables`
 - REST formatting used otherwise
-- Both systems share same entry types but use different formatters
+- Both types share same entry structure but use different formatters
 
 **Privacy by Design**
-- Logging: Privacy controlled via `OSLogPrivacy` levels
-- Analytics: Privacy via automatic masking in `AnalyticEntry` initializer
-- Masking is irreversible - once masked data is created, original data is gone
-- GraphQL query masking: Secure by default with `maskQueryLiterals: true`
-  - Removes literal values from queries while preserving structure for complexity analysis
-  - Consistent with variable masking behavior
+- All masking happens via `MaskingUtilities`
+- Masking is irreversible - once masked, original data is gone
+- GraphQL query masking secure by default (`maskQueryLiterals: true`)
+- Removes literal values from queries while preserving structure
 
 ## Platform Support
 
@@ -122,11 +129,11 @@ Located in `Sources/FTNetworkTracer/Analytics/`
 - macOS 11+
 - tvOS 14+
 - watchOS 7+
-- Swift 6.1.2+
+- Swift 6.1+
 
 ## Code Conventions
 
 - Use `@Sendable` for closures that cross concurrency boundaries
 - All public types conform to `Sendable` for Swift 6 strict concurrency
-- Privacy-sensitive data uses consistent `***MASKED***` replacement string
+- Privacy-sensitive data uses consistent `***` replacement string
 - GraphQL query formatting removes `__typename` as noise in logs

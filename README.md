@@ -1,6 +1,6 @@
 # FTNetworkTracer
 
-A Swift package for comprehensive network request logging and analytics tracking with privacy-first design.
+A Swift library for formatting and masking network trace data with privacy-first design.
 
 [![Swift](https://img.shields.io/badge/Swift-6.1.0+-orange.svg)](https://swift.org)
 [![Platforms](https://img.shields.io/badge/Platforms-iOS%20|%20macOS%20|%20tvOS%20|%20watchOS-lightgrey.svg)](https://swift.org)
@@ -8,17 +8,13 @@ A Swift package for comprehensive network request logging and analytics tracking
 
 ## Features
 
-- 🔍 **Dual-mode operation**: Simultaneous logging and analytics tracking
-- 🔒 **Privacy-first design**: Configurable data masking with three privacy levels
-- 🌐 **REST & GraphQL support**: Specialized formatting for both API types
-- 🔐 **GraphQL query masking**: Automatic literal masking for privacy-safe analytics
-- 📊 **Structured logging**: Uses `os.log` for performance and privacy
-- 🎚️ **Log level filtering**: Configurable minimum threshold (debug, info, error, fault)
-- 🐧 **Linux support**: Full cross-platform compatibility with CI/CD
-- 🎯 **Type-safe**: Associated values eliminate impossible states
-- ⚡ **Zero dependencies**: Pure Swift implementation
-- 🧪 **Fully tested**: 75 tests including comprehensive security and privacy tests
-- 🔄 **Swift 6 ready**: Strict concurrency compliant with `Sendable` support
+- **Privacy-first design**: Configurable data masking with three privacy levels
+- **REST & GraphQL support**: Specialized formatting for both API types
+- **GraphQL query masking**: Automatic literal masking for privacy-safe analytics
+- **Type-safe**: Associated values eliminate impossible states
+- **Zero dependencies**: Pure Swift implementation
+- **Fully tested**: 45 tests covering formatting, masking, and privacy
+- **Swift 6 ready**: Strict concurrency compliant with `Sendable` support
 
 ## Requirements
 
@@ -31,79 +27,59 @@ A Swift package for comprehensive network request logging and analytics tracking
 ### Swift Package Manager
 
 ```swift
-    .package(url: "https://github.com/futuredapp/FTNetworkTracer.git", from: "0.2.0")
+.package(url: "https://github.com/futuredapp/FTNetworkTracer.git", from: "1.0.0")
 ```
 
 ## Quick Start
 
-### Basic Setup
-
 ```swift
 import FTNetworkTracer
 
-// Create logger configuration
-let logger = LoggerConfiguration(
-    subsystem: "com.yourapp",
-    category: "network"
-)
-
-// Create analytics tracker
-class MyAnalytics: AnalyticsProtocol {
-    let configuration = AnalyticsConfiguration(privacy: .private)
-
-    func track(_ entry: AnalyticEntry) {
-        // Send to your analytics service
-        print("Tracking: \(entry.method) \(entry.url)")
-
-        // Access GraphQL query for complexity analysis
-        if let query = entry.query {
-            analyzeQueryComplexity(query)
-        }
-    }
-
-    func analyzeQueryComplexity(_ query: String) {
-        // Analyze query structure without seeing sensitive literals
-        let fieldCount = query.components(separatedBy: "\n").count
-        print("Query complexity: \(fieldCount) lines")
-    }
-}
-
-// Initialize tracer
-let tracer = FTNetworkTracer(
-    logger: logger,
-    analytics: MyAnalytics()
-)
-```
-
-### REST API Usage
-
-```swift
-// Track request
-let request = URLRequest(url: URL(string: "https://api.example.com/users")!)
-tracer.logAndTrackRequest(
-    request: request,
+// Create a network trace entry
+let entry = NetworkTraceEntry(
+    type: .request(method: "GET", url: "https://api.example.com/users"),
+    headers: ["Authorization": "Bearer token"],
     requestId: UUID().uuidString
 )
 
-// Track response
-let response = HTTPURLResponse(...)
-tracer.logAndTrackResponse(
-    request: request,
-    response: response,
-    data: responseData,
-    requestId: requestId,
-    startTime: startTime
+// Format for console output
+let formatted = NetworkTraceFormatter.format(entry)
+print(formatted)
+
+// Mask for analytics
+let masked = MaskingUtilities.mask(entry, configuration: .private)
+```
+
+## Usage
+
+### Creating Entries
+
+```swift
+// REST request
+let requestEntry = NetworkTraceEntry(
+    type: .request(method: "POST", url: "https://api.example.com/users"),
+    headers: ["Content-Type": "application/json"],
+    body: jsonData,
+    requestId: requestId
 )
 
-// Track error
-tracer.logAndTrackError(
-    request: request,
-    error: error,
+// REST response
+let responseEntry = NetworkTraceEntry(
+    type: .response(method: "POST", url: "https://api.example.com/users", statusCode: 201),
+    headers: responseHeaders,
+    body: responseData,
+    duration: Date().timeIntervalSince(startTime),
+    requestId: requestId
+)
+
+// Error
+let errorEntry = NetworkTraceEntry(
+    type: .error(method: "POST", url: "https://api.example.com/users", error: "Connection timeout"),
     requestId: requestId
 )
 ```
 
-### GraphQL Usage
+### GraphQL Entries
 
 ```swift
 let query = """
@@ -115,107 +91,97 @@ query GetUser($id: ID!) {
 }
 """
 
-let variables: [String: any Sendable] = ["id": "123"]
-
-// Track GraphQL request
-tracer.logAndTrackRequest(
-    url: "https://api.example.com/graphql",
+let graphQLEntry = NetworkTraceEntry(
+    type: .request(method: "POST", url: "https://api.example.com/graphql"),
+    headers: ["Authorization": "Bearer token"],
+    requestId: requestId,
     operationName: "GetUser",
     query: query,
-    variables: variables,
-    headers: ["Authorization": "Bearer token"],
-    requestId: requestId
-)
-
-// Track GraphQL response
-tracer.logAndTrackResponse(
-    url: "https://api.example.com/graphql",
-    operationName: "GetUser",
-    statusCode: 200,
-    requestId: requestId,
-    startTime: startTime
+    variables: ["id": "123"]
 )
 ```
 
 ## Configuration
 
-### Logger Configuration
+### Formatter Configuration
+
+Control how entries are formatted for display:
 
 ```swift
-// Default configuration with pretty-printed JSON
-let logger = LoggerConfiguration(
-    subsystem: "com.yourapp",
-    category: "network",
-    privacy: .auto // .none, .auto, .private, .sensitive
-)
+// Default configuration (headers + body, pretty JSON)
+let output = NetworkTraceFormatter.format(entry)
 
-// With log level filtering (only show errors and faults)
-let logger = LoggerConfiguration(
-    subsystem: "com.yourapp",
-    category: "network",
-    logLevel: .error // .debug, .info, .error, .fault
-)
+// Compact (no headers or body)
+let compact = NetworkTraceFormatter.format(entry, configuration: .compact)
 
-// Custom data decoder (e.g., show only size)
-let logger = LoggerConfiguration(
-    subsystem: "com.yourapp",
-    category: "network",
-    dataDecoder: LoggerConfiguration.sizeOnlyDataDecoder
+// Custom configuration
+let custom = FormatterConfiguration(
+    dataDecoder: FormatterConfiguration.defaultDataDecoder,
+    includeHeaders: true,
+    includeBody: false,
+    maxBodyLength: 1000
 )
-
-// UTF8-only decoder (no JSON formatting)
-let logger = LoggerConfiguration(
-    subsystem: "com.yourapp",
-    category: "network",
-    dataDecoder: LoggerConfiguration.utf8DataDecoder
-)
+let customOutput = NetworkTraceFormatter.format(entry, configuration: custom)
 ```
 
-### Analytics Configuration
+**Preset Configurations:**
+- `.default` - Headers, body, and pretty-printed JSON
+- `.compact` - Only basic request/response info (no headers or body)
+- `.verbose` - Everything with unlimited body length
+
+**Data Decoders:**
+- `defaultDataDecoder` - Pretty-prints JSON with UTF8 fallback
+- `utf8DataDecoder` - Simple UTF8 string without JSON formatting
+- `sizeOnlyDataDecoder` - Shows only data size (e.g., `<1024 bytes>`)
+
+### Masking Configuration
+
+Control how sensitive data is masked for analytics:
 
 ```swift
-// Sensitive mode (most secure, default)
-let config = AnalyticsConfiguration(privacy: .sensitive)
+// Sensitive mode (recommended for production)
+let masked = MaskingUtilities.mask(entry, configuration: .sensitive)
 
 // Private mode with exceptions
-let config = AnalyticsConfiguration(
+let config = MaskingConfiguration(
     privacy: .private,
-    unmaskedHeaders: ["content-type", "accept"],
+    maskQueryLiterals: true,
+    unmaskedHeaders: ["Content-Type", "Accept"],
     unmaskedUrlQueries: ["page", "limit"],
-    unmaskedBodyParams: ["username", "email"]
+    unmaskedBodyParams: ["operationType"]
 )
+let customMasked = MaskingUtilities.mask(entry, configuration: config)
 
-// Private mode with GraphQL query literal masking disabled
-let config = AnalyticsConfiguration(
-    privacy: .private,
-    maskQueryLiterals: false  // Disable query literal masking (default: true)
-)
-
-// No privacy (development only)
-let config = AnalyticsConfiguration(privacy: .none)
+// No masking (development only)
+let unmasked = MaskingUtilities.mask(entry, configuration: .none)
 ```
+
+**Preset Configurations:**
+- `.none` - No masking (development only)
+- `.private` - Selective masking with configurable exceptions
+- `.sensitive` - Aggressive masking (production recommended)
 
 ### Privacy Levels
 
-| Level | Headers | URL Queries | Body | GraphQL Queries | Use Case |
-|-------|---------|-------------|------|----------------|----------|
-| **`.none`** | ✅ Preserved | ✅ Preserved | ✅ Preserved | ⚠️ Literals masked* | Development only |
-| **`.private`** | ⚠️ Masked (with exceptions) | ⚠️ Masked (with exceptions) | ⚠️ Masked (with exceptions) | ⚠️ Literals masked* | Production with selective tracking |
-| **`.sensitive`** | 🔒 All masked | 🔒 All removed | 🔒 Removed | 🔒 Removed (nil) | Production with maximum privacy |
+| Level | Headers | URL Queries | Body | GraphQL Query | GraphQL Variables |
+|-------|---------|-------------|------|---------------|-------------------|
+| **`.none`** | Preserved | Preserved | Preserved | Literals masked* | Preserved |
+| **`.private`** | Masked (with exceptions) | Masked (with exceptions) | Masked (with exceptions) | Literals masked* | Masked (with exceptions) |
+| **`.sensitive`** | All `***` | Removed | `nil` | `nil` | `nil` |
 
-\* GraphQL query literal masking is **enabled by default** (`maskQueryLiterals: true`) to prevent accidental data leakage. Can be disabled if needed.
+\* GraphQL query literal masking is **enabled by default** (`maskQueryLiterals: true`). Can be disabled if needed.
 
 ## Privacy & Security
 
 ### What Gets Masked
 
-FTNetworkTracer automatically masks sensitive data in analytics:
+MaskingUtilities automatically masks sensitive data:
 
-- **Headers**: `Authorization`, `Cookie`, `X-API-Key`, etc.
-- **URL Parameters**: All query parameters (in `.sensitive` mode)
-- **Body Fields**: `password`, `token`, `secret`, `creditCard`, `ssn`, etc.
-- **GraphQL Variables**: All variables unless explicitly unmasked
-- **GraphQL Query Literals**: String and number literals in queries (enabled by default)
+- **Headers**: All values masked (exceptions configurable)
+- **URL Parameters**: Query parameters masked or removed
+- **Body Fields**: All JSON values masked (exceptions configurable)
+- **GraphQL Variables**: All values masked (exceptions configurable)
+- **GraphQL Query Literals**: String and number literals in queries
   - `"admin"` → `"***"`
   - `123` → `***`
   - Variable references like `$userId` are preserved
@@ -227,7 +193,7 @@ Once data is masked with `***`, the original value **cannot be recovered**. This
 
 ### Case-Insensitive Matching
 
-Unmasked parameter lists use case-insensitive matching to prevent bypasses:
+Unmasked parameter lists use case-insensitive matching:
 
 ```swift
 // These are all treated as the same key:
@@ -235,18 +201,9 @@ unmaskedHeaders: ["content-type"]
 // Matches: "Content-Type", "CONTENT-TYPE", "content-type"
 ```
 
-### Attack Vector Protection
+## Output Examples
 
-FTNetworkTracer has been tested against common attack vectors:
-- ✅ XSS attempts (`<script>alert('XSS')</script>`)
-- ✅ SQL injection (`' OR '1'='1`)
-- ✅ Path traversal (`../../../etc/passwd`)
-- ✅ Very long strings (10,000+ characters)
-- ✅ Unicode and special characters
-
-## Log Output Examples
-
-### REST Request Log
+### REST Request
 ```
 [REQUEST] [abc12345]
 	Method       POST
@@ -254,14 +211,14 @@ FTNetworkTracer has been tested against common attack vectors:
 	Timestamp    2025-11-04 15:42:30.123
 Headers:
 	Content-Type application/json
-	Body:
-	{
-	  "username": "john",
-	  "email": "john@example.com"
-	}
+Body:
+ {
+  "username": "john",
+  "email": "john@example.com"
+}
 ```
 
-### GraphQL Request Log
+### GraphQL Request
 ```
 [REQUEST] [xyz67890]
 	Method       POST
@@ -283,9 +240,9 @@ Variables:
 	}
 ```
 
-### GraphQL Query Masking (Analytics)
+### GraphQL Query Masking
 
-When tracking analytics, GraphQL queries are automatically masked for privacy:
+When masking for analytics, GraphQL queries have literals automatically masked:
 
 **Original Query:**
 ```graphql
@@ -297,7 +254,7 @@ query GetUser($userId: ID!) {
 }
 ```
 
-**Masked Query in AnalyticEntry (default behavior):**
+**Masked Query:**
 ```graphql
 query GetUser($userId: ID!) {
   user(id: $userId, role: "***", minAge: ***) {
@@ -307,126 +264,135 @@ query GetUser($userId: ID!) {
 }
 ```
 
-✅ **Preserved**: Query structure, field selections, variable references (`$userId`), boolean literals (`true`, `false`), null literals (`null`), enum values (e.g., `ADMIN`, `ACTIVE`)
-🔒 **Masked**: String literals (`"admin"`), number literals (`18`)
-
-This allows you to analyze query complexity and patterns without exposing sensitive data.
+**Preserved**: Query structure, field selections, variable references (`$userId`), boolean literals, null literals, enum values
+**Masked**: String literals, number literals
 
 ## Architecture
 
-FTNetworkTracer uses a **dual-mode architecture**:
-
 ```
-┌─────────────────┐
-│ FTNetworkTracer │
-└────────┬────────┘
-         │
-    ┌────┴────┐
-    │         │
-┌───▼───┐ ┌──▼────────┐
-│Logging│ │ Analytics │
-└───────┘ └───────────┘
+┌──────────────────────┐
+│  NetworkTraceEntry   │
+└──────────┬───────────┘
+           │
+     ┌─────┴─────┐
+     │           │
+     ▼           ▼
+┌─────────────┐ ┌─────────────┐
+│ Formatter   │ │  Masking    │
+│ Utilities   │ │  Utilities  │
+└─────────────┘ └─────────────┘
+     │                │
+     ▼                ▼
+Human-readable    Privacy-masked
+   output            entry
 ```
 
 ### Key Components
 
-- **`FTNetworkTracer`**: Main coordinator for logging and analytics
-- **`EntryType`**: Type-safe enum with associated values (request/response/error)
-- **`LogEntry`**: Internal logging data with formatted messages
-- **`AnalyticEntry`**: Public analytics data with automatic privacy masking
-- **`GraphQLFormatter`**: Specialized GraphQL query formatting
-- **`RESTFormatter`**: REST body formatting with pluggable decoders
+- **`NetworkTraceEntry`**: Core data structure for network events (request/response/error)
+- **`EntryType`**: Type-safe enum with associated values (method, URL, status code, error)
+- **`NetworkTraceFormatter`**: Formats entries into human-readable strings
+- **`FormatterConfiguration`**: Controls formatting options (headers, body, data decoder)
+- **`GraphQLFormatter`**: Specialized GraphQL query and variables formatting
+- **`RESTFormatter`**: REST body formatting utilities
+- **`MaskingUtilities`**: Privacy masking for entries and individual components
+- **`MaskingConfiguration`**: Masking rules, privacy level, and exceptions
+- **`MaskingPrivacy`**: Privacy levels (none, private, sensitive)
 
 ### Design Principles
 
-- **Privacy by Design**: Masking happens at initialization, not at usage
-- **Type Safety**: Associated values eliminate optional-heavy code
-- **Separation of Concerns**: Logging and analytics are independent
-- **Protocol-Based**: Easy to extend and test
+- **Privacy by Design**: Masking is irreversible once applied
+- **Type Safety**: Associated values eliminate impossible states
+- **Composable**: Format and mask independently based on needs
+- **Configurable**: Presets for common cases, full customization available
 
 ## Test Coverage
 
-- **AnalyticsTests** (11 tests): Privacy masking for all levels + GraphQL query masking
+- **FormattingTests** (12 tests): Entry formatting, configuration presets
 - **GraphQLFormatterTests** (11 tests): Query and variable formatting
-- **IntegrationTests** (16 tests): End-to-end flows including query analytics
-- **LoggingTests** (6 tests): Log message building and level filtering
-- **RESTFormatterTests** (9 tests): Body formatting
-- **SecurityTests** (27 tests): Comprehensive security validation (including 5 new GraphQL query masking tests)
+- **MaskingTests** (13 tests): Privacy levels, query masking, recursive masking
+- **RESTFormatterTests** (9 tests): Body formatting with decoders
 
-**Total: 80 tests** with full coverage of privacy, security, and GraphQL query masking
+**Total: 45 tests**
 
-## Example Projects
+## Integration Example
+
+### NetworkObserver Pattern
+
+```swift
+class NetworkLogger {
+    func logRequest(_ entry: NetworkTraceEntry) {
+        let formatted = NetworkTraceFormatter.format(entry)
+        print(formatted)
+    }
+
+    func trackRequest(_ entry: NetworkTraceEntry) {
+        let masked = MaskingUtilities.mask(entry, configuration: .private)
+        analyticsService.track(
+            method: masked.method,
+            url: masked.url,
+            headers: masked.headers,
+            body: masked.body
+        )
+    }
+}
+```
 
 ### URLSession Integration
 
 ```swift
 class NetworkClient {
-    let tracer: FTNetworkTracer
+    let logger = NetworkLogger()
 
     func fetch(url: URL) async throws -> Data {
         let requestId = UUID().uuidString
         let request = URLRequest(url: url)
         let startTime = Date()
 
-        // Log request
-        tracer.logAndTrackRequest(request: request, requestId: requestId)
+        // Create and log request entry
+        let requestEntry = NetworkTraceEntry(
+            type: .request(method: request.httpMethod ?? "GET", url: url.absoluteString),
+            headers: request.allHTTPHeaderFields,
+            body: request.httpBody,
+            requestId: requestId
+        )
+        logger.logRequest(requestEntry)
+        logger.trackRequest(requestEntry)
 
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
+            let httpResponse = response as? HTTPURLResponse
 
-            // Log response
-            tracer.logAndTrackResponse(
-                request: request,
-                response: response,
-                data: data,
-                requestId: requestId,
-                startTime: startTime
+            // Create and log response entry
+            let responseEntry = NetworkTraceEntry(
+                type: .response(
+                    method: request.httpMethod ?? "GET",
+                    url: url.absoluteString,
+                    statusCode: httpResponse?.statusCode
+                ),
+                headers: httpResponse?.allHeaderFields as? [String: String],
+                body: data,
+                duration: Date().timeIntervalSince(startTime),
+                requestId: requestId
             )
+            logger.logRequest(responseEntry)
+            logger.trackRequest(responseEntry)
 
             return data
         } catch {
-            // Log error
-            tracer.logAndTrackError(
-                request: request,
-                error: error,
+            // Create and log error entry
+            let errorEntry = NetworkTraceEntry(
+                type: .error(
+                    method: request.httpMethod ?? "GET",
+                    url: url.absoluteString,
+                    error: error.localizedDescription
+                ),
                 requestId: requestId
             )
+            logger.logRequest(errorEntry)
+            logger.trackRequest(errorEntry)
             throw error
         }
-    }
-}
-```
-
-### Apollo GraphQL Integration
-
-```swift
-class ApolloNetworkInterceptor: ApolloInterceptor {
-    let tracer: FTNetworkTracer
-
-    func interceptAsync<Operation: GraphQLOperation>(
-        chain: RequestChain,
-        request: HTTPRequest<Operation>,
-        response: HTTPResponse<Operation>?,
-        completion: @escaping (Result<GraphQLResult<Operation.Data>, Error>) -> Void
-    ) {
-        let requestId = UUID().uuidString
-
-        if let operation = request.operation as? GraphQLQuery {
-            tracer.logAndTrackRequest(
-                url: request.graphQLEndpoint.absoluteString,
-                operationName: operation.operationName,
-                query: operation.queryDocument,
-                variables: operation.variables,
-                headers: request.additionalHeaders,
-                requestId: requestId
-            )
-        }
-
-        chain.proceedAsync(
-            request: request,
-            response: response,
-            completion: completion
-        )
     }
 }
 ```
@@ -437,13 +403,13 @@ class ApolloNetworkInterceptor: ApolloInterceptor {
 
 - **Development**: `.none` or `.private`
 - **Staging**: `.private` with specific unmasked fields
-- **Production**: `.sensitive` (default)
+- **Production**: `.sensitive`
 
 ### 2. Generate Unique Request IDs
 
 ```swift
 let requestId = UUID().uuidString
-// Use the same requestId for request, response, and error
+// Use the same requestId for request, response, and error entries
 ```
 
 ### 3. Track Response Times
@@ -451,26 +417,25 @@ let requestId = UUID().uuidString
 ```swift
 let startTime = Date()
 // Make request...
-tracer.logAndTrackResponse(..., startTime: startTime)
+let responseEntry = NetworkTraceEntry(
+    ...,
+    duration: Date().timeIntervalSince(startTime),
+    ...
+)
 ```
 
-### 4. Don't Log Sensitive Data
+### 4. Be Conservative with Exceptions
 
-Even with masking, avoid logging:
-- Payment card details
-- Social security numbers
-- Biometric data
-- Health information
-
-### 5. Test Your Configuration
-
-Always test your privacy configuration to ensure sensitive data is masked:
-
+Only unmask fields that are truly non-sensitive:
 ```swift
-let config = AnalyticsConfiguration(privacy: .private, ...)
-let entry = AnalyticEntry(type: .request(...), body: testData, configuration: config)
-// Verify entry.body doesn't contain sensitive data
+let config = MaskingConfiguration(
+    privacy: .private,
+    unmaskedHeaders: ["Content-Type", "Accept"],  // Safe metadata
+    unmaskedUrlQueries: ["page", "limit"],        // Pagination only
+    unmaskedBodyParams: []                        // Be cautious with body
+)
 ```
+
 ## Support
 
 For issues, questions, or contributions:
@@ -479,4 +444,4 @@ For issues, questions, or contributions:
 
 ---
 
-**Made with ❤️ by Futured**
+**Made with care by Futured**
